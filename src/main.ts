@@ -17,6 +17,16 @@ async function bootstrap() {
 
   const port = configService.get<number>('APP_PORT', 8080);
 
+    // Enable validation
+  // app.useGlobalPipes(new ValidationPipe({
+  //   whitelist: true,
+  //   transform: true,
+  //   forbidNonWhitelisted: false,
+  // }));
+
+  // Set global prefix
+  app.setGlobalPrefix('api/v1');
+
   // Cấu hình CORS hỗ trợ subdomain
   app.enableCors({
     origin: (origin, callback) => {

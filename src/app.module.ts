@@ -7,16 +7,22 @@ import { AppService } from './app.service';
 import { appConfig } from './config/app.config';
 import { SharedModule } from './shared/shared.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AdminModule } from './admin/admin.module';
+import { ProbabilityConfigModule } from './probability_config/pc.module';
+import { HistoryModule } from './history/history.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env'}),
     ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       useFactory: (configService: ConfigService) => databaseConfig(configService),
       inject: [ConfigService],
     }),
     SharedModule,
+    AdminModule,
+    HistoryModule,
+    ProbabilityConfigModule
   ],
   controllers: [AppController],
   providers: [AppService]

@@ -23,6 +23,7 @@
     "prestart": "npm run create-db"
   },
   "dependencies": {
+    "@nestjs/class-validator": "^0.13.4",
     "@nestjs/common": "^11.1.4",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.4",
@@ -37,6 +38,7 @@
     "@nestjs/websockets": "^11.1.4",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
+    "class-validator": "^0.14.2",
     "cloudinary": "^2.7.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.2.0",
