@@ -1,3 +1,4 @@
+import { HistoryEntity } from 'src/history/entities/history.entity';
 import { ProbabilityConfigEntity } from 'src/probability_config/entities/pc.entity';
 import {
   Column,
@@ -51,6 +52,12 @@ export class UserAdminEntity {
     onDelete: 'CASCADE',
   })
   pc_configs: ProbabilityConfigEntity[];
+
+  @OneToMany(() => HistoryEntity, (history) => history.history_admin_id, {
+    nullable: true,
+    onDelete: 'CASCADE',
+  })
+  history: HistoryEntity[];
 
   @CreateDateColumn()
   createdAt: Timestamp;

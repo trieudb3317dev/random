@@ -1,12 +1,23 @@
-import { Column, Entity, PrimaryGeneratedColumn, Timestamp } from 'typeorm';
+import { UserAdminEntity } from 'src/admin/entities/user-admin.entity';
+import {
+  Column,
+  Entity,
+  ManyToMany,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  Timestamp,
+} from 'typeorm';
 
 @Entity('history')
 export class HistoryEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ nullable: false })
-  history_admin_id: number;
+  @ManyToOne(() => UserAdminEntity, (userAdmin) => userAdmin.history, {
+    nullable: false,
+    onDelete: 'CASCADE',
+  })
+  history_admin_id: UserAdminEntity;
 
   @Column({ nullable: false })
   history_time: Date;

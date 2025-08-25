@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Post, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { CreateUserAdminDto } from './dto/create.dto';
 import { AuthDto } from './dto/auth.dto';
@@ -31,13 +41,36 @@ export class AdminController {
 
   @Post('/pc-config')
   @UseGuards(JwtAuthAdminGuard)
-  async createPC_Config(@Body() pcConfigDto: PC_ConfigDto) {
-    return this.adminService.createProbabilityConfig(pcConfigDto);
+  async createPC_Config(@Body() pcConfigDto: PC_ConfigDto, @Req() req: any) {
+    return this.adminService.createProbabilityConfig(pcConfigDto, req.user);
   }
 
   @Get('/pc-config')
   @UseGuards(JwtAuthAdminGuard)
   async findAllPC_Configs() {
     return this.adminService.findAllPC_Configs();
+  }
+
+  @Patch('/pc-config/:id')
+  @UseGuards(JwtAuthAdminGuard)
+  async removePC_Config(@Param('id') id: number) {
+    return this.adminService.removePC_Config(id);
+  }
+
+  @Get('/pc-config/:id')
+  @UseGuards(JwtAuthAdminGuard)
+  async getPC_Config(@Param('id') id: number) {
+    return this.adminService.getPC_ConfigById(id);
+  }
+
+  @Post('/import-player')
+  async importPlayer(@Body('data') data: string) {
+    return this.adminService.importPlayer(data);
+  }
+
+  @Post('/random')
+  @UseGuards(JwtAuthAdminGuard)
+  async random(@Req() req: any) {
+    return this.adminService.random(req.user);
   }
 }
