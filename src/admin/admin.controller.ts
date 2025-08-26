@@ -57,16 +57,32 @@ export class AdminController {
     return this.adminService.findAllPC_Configs();
   }
 
-  @Patch('/pc-config/:id')
+  @Patch('/remove-pc-config/:id')
+  @UseGuards(JwtAuthAdminGuard)
+  async removePC_ConfigById(
+    @Param('id') id: number,
+    @Req() req: any,
+  ): Promise<any> {
+    return this.adminService.removePC_ConfigByid(id, req.user);
+  }
+
+  @Patch('/edit-pc-config/:id')
+  @UseGuards(JwtAuthAdminGuard)
+  async PC_ConeditfigById(
+    @Param('id') id: number,
+    @Req() req: any,
+    @Body() { pc_value, pc_percent }: { pc_value: string; pc_percent: number },
+  ): Promise<any> {
+    return this.adminService.editPC_ConfigByid(id, req.user, {
+      pc_value,
+      pc_percent,
+    });
+  }
+
+  @Patch('/remove-player/:id')
   @UseGuards(JwtAuthAdminGuard)
   async removePC_Config(@Param('id') id: number, @Req() req: any) {
     return this.adminService.removePC_Config(id, req.user);
-  }
-
-  @Get('/pc-config-totals')
-  @UseGuards(JwtAuthAdminGuard)
-  async getPC_ConfigTotals() {
-    return this.adminService.findPC_ConfigTotal();
   }
 
   @Get('/pc-config/:id')
@@ -76,13 +92,50 @@ export class AdminController {
   }
 
   @Post('/import-player')
-  async importPlayer(@Body('data') data: string) {
-    return this.adminService.importPlayer(data);
+  @UseGuards(JwtAuthAdminGuard)
+  async importPlayer(@Body('data') data: string, @Req() req: any) {
+    return this.adminService.importPlayer(data, req.user);
+  }
+
+  @Get('/player-final')
+  async getPlayerFinal(): Promise<any> {
+    return this.adminService.findplayerFinal();
+  }
+
+  @Get('/player-final-one/:id')
+  async getPlayerFinalOne(@Param('id') id: number): Promise<any> {
+    return this.adminService.findplayerFinalOne(id);
+  }
+
+  @Patch('/player-final-one/:id')
+  async updatePlayerFinalOne(
+    @Param('id') id: number,
+    @Body() pc_value: string,
+  ): Promise<any> {
+    return this.adminService.updateplayerFinalOne(id, pc_value);
+  }
+
+  @Post('/create-new-player')
+  @UseGuards(JwtAuthAdminGuard)
+  async createNewPlayer(@Body('data') data: string, @Req() req: any) {
+    return this.adminService.createNewPlayer(data, req.user);
+  }
+
+  @Post('/create-equally-divided')
+  @UseGuards(JwtAuthAdminGuard)
+  async createEquallyDivided(@Body('data') data: string, @Req() req: any) {
+    return this.adminService.createEquallyDivided(data, req.user);
   }
 
   @Post('/random')
   @UseGuards(JwtAuthAdminGuard)
   async random(@Req() req: any) {
     return this.adminService.random(req.user);
+  }
+
+  @Post('/check-change-pc')
+  @UseGuards(JwtAuthAdminGuard)
+  async checkAndChangPC_Config(@Req() req: any): Promise<any> {
+    return this.adminService.checkPC_Config(req.user);
   }
 }

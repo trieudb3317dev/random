@@ -10,7 +10,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdminModule } from './admin/admin.module';
 import { ProbabilityConfigModule } from './probability_config/pc.module';
 import { HistoryModule } from './history/history.module';
-import { PcConfigTotalModule } from './total_probability_config/pc_config_total.module';
+import { PcConfigFinalModule } from './total_probability_config/pc_config_total.module';
 
 @Module({
   imports: [
@@ -24,7 +24,7 @@ import { PcConfigTotalModule } from './total_probability_config/pc_config_total.
     AdminModule,
     HistoryModule,
     ProbabilityConfigModule,
-    PcConfigTotalModule
+    PcConfigFinalModule
   ],
   controllers: [AppController],
   providers: [AppService]

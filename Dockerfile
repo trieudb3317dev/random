@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Cài đặt dependencies bằng npm
-RUN npm install
+RUN npm install --force
 
 # Copy toàn bộ source vào container
 COPY . .
