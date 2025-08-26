@@ -1,5 +1,6 @@
 import { HistoryEntity } from 'src/history/entities/history.entity';
 import { ProbabilityConfigEntity } from 'src/probability_config/entities/pc.entity';
+import { ProbabilityConfigTotalEntity } from 'src/total_probability_config/entities/pc_config_total.entity';
 import {
   Column,
   CreateDateColumn,
@@ -52,6 +53,16 @@ export class UserAdminEntity {
     onDelete: 'CASCADE',
   })
   pc_configs: ProbabilityConfigEntity[];
+
+  @OneToMany(
+    () => ProbabilityConfigTotalEntity,
+    (pcTotal) => pcTotal.pc_total_admin,
+    {
+      nullable: true,
+      onDelete: 'CASCADE',
+    },
+  )
+  pc_totals: ProbabilityConfigTotalEntity[];
 
   @OneToMany(() => HistoryEntity, (history) => history.history_admin_id, {
     nullable: true,

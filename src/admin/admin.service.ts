@@ -99,6 +99,16 @@ export class AdminService {
     return { message: 'Admin users retrieved successfully', admins };
   }
 
+  async findPC_ConfigByEmail(
+    admin: any,
+  ): Promise<{ message: string; admins: UserAdminEntity[] }> {
+    const admins = await this.userAdminRepository.find({
+      where: { email: admin.email },
+      relations: ['pc_configs'],
+    });
+    return { message: 'Admin users retrieved by admin successfully', admins };
+  }
+
   async createProbabilityConfig(
     pcConfigDto: PC_ConfigDto,
     admin: UserAdminEntity,
@@ -109,7 +119,7 @@ export class AdminService {
 
     const findAdmin = await this.userAdminRepository.findOne({
       where: { email: admin.email },
-      relations: ['pc_configs'],
+      relations: ['pc_configs', 'pc_totals'],
     });
 
     if (pcConfigDto.pc_percent < 0 || pcConfigDto.pc_percent > 100) {
@@ -132,10 +142,19 @@ export class AdminService {
 
     const pcConfig: any = this.pcConfigRepository.create(newConfig);
 
-    const pcTotal = await this.pcConfigTotalRepository.findOne({
-      where: { pc_toal_id: pcConfig.pc_total?.pc_toal_id },
-      relations: ['pcs'],
-    });
+    let newPC_Total = null;
+
+    // if (!pcConfig) {
+    //   newPC_Total = this.pcConfigTotalRepository.create({
+    //     pc_used: 0,
+    //     pc_total: 100,
+    //     pc_total_admin: findAdmin ? findAdmin : null,
+    //     is_active: true,
+    //     pcs: [],
+    //   });
+    //   pcConfig.pc_total = newPC_Total;
+    //   await this.pcConfigTotalRepository.save(newPC_Total);
+    // }
 
     if (pcTotalReal + pcConfig.pc_percent > 100) {
       const pcConfig = null;
@@ -146,23 +165,57 @@ export class AdminService {
 
     await this.pcConfigRepository.save(pcConfig);
 
+    const pcTotal = await this.pcConfigTotalRepository.findOne({
+      where: {
+        pc_toal_id: pcConfig.pc_total?.pc_toal_id,
+      },
+      relations: ['pcs', 'pc_total_admin'],
+    });
+
     if (pcTotal) {
       pcTotal.pc_used = pcTotalReal + pcConfig.pc_percent;
+
+      // if (pcTotal && findAdmin.email === admin.email) {
+      //   pcTotal.pcs.push(pcConfig);
+      //   await this.pcConfigTotalRepository.save(pcTotal);
+      // }
+
+      // pcTotal.pcs.push(pcConfig);
       await this.pcConfigTotalRepository.save(pcTotal);
+
       pcConfig.pc_total = pcTotal;
       await this.pcConfigRepository.save(pcConfig);
     } else {
       const newPcTotal = this.pcConfigTotalRepository.create({
         pc_used: pcConfig.pc_percent,
         pc_total: 100,
+        pc_total_admin: findAdmin ? findAdmin : null,
         is_active: true,
       });
       const savedPcTotal = await this.pcConfigTotalRepository.save(newPcTotal);
       pcConfig.pc_total = savedPcTotal;
       await this.pcConfigRepository.save(pcConfig);
+
+      if (newPC_Total && findAdmin.email === admin.email) {
+        if (!newPC_Total.pcs) {
+          newPC_Total.pcs = [];
+          await this.pcConfigTotalRepository.save(newPC_Total);
+        }
+        newPC_Total.pcs.push(pcConfig);
+        await this.pcConfigTotalRepository.save(newPC_Total);
+      }
+
+      if (findAdmin && findAdmin.email === admin.email) {
+        if (!findAdmin.pc_totals) {
+          findAdmin.pc_totals = [];
+          await this.userAdminRepository.save(findAdmin);
+        }
+        findAdmin.pc_totals.push(savedPcTotal);
+        await this.userAdminRepository.save(findAdmin);
+      }
     }
 
-    if (findAdmin) {
+    if (findAdmin && findAdmin.email === admin.email) {
       if (!findAdmin.pc_configs) {
         findAdmin.pc_configs = [];
         await this.userAdminRepository.save(findAdmin);
@@ -171,10 +224,19 @@ export class AdminService {
       await this.userAdminRepository.save(findAdmin);
     }
 
+    if (newPC_Total && findAdmin.email === admin.email) {
+      if (!newPC_Total.pcs) {
+        newPC_Total.pcs = [];
+        await this.pcConfigTotalRepository.save(newPC_Total);
+      }
+      newPC_Total.pcs.push(pcConfig);
+      await this.pcConfigTotalRepository.save(newPC_Total);
+    }
+
     return { message: 'Probability config created', pcConfig };
   }
 
-  async removePC_Config(pc_id: number): Promise<any> {
+  async removePC_Config(pc_id: number, admin: any): Promise<any> {
     const pcConfig = await this.pcConfigRepository.findOne({
       where: { pc_id },
       relations: ['pc_admin_id', 'pc_total'],
@@ -184,7 +246,7 @@ export class AdminService {
     }
     await this.pcConfigRepository.update(pc_id, { is_active: true });
 
-    if (pcConfig.pc_total) {
+    if (pcConfig.pc_total && pcConfig.pc_admin_id.email === admin.email) {
       const pcTotal = await this.pcConfigTotalRepository.findOne({
         where: { pc_toal_id: pcConfig.pc_total.pc_toal_id },
         relations: ['pcs'],
@@ -199,20 +261,31 @@ export class AdminService {
       }
     }
 
-    if (pcConfig.pc_admin_id) {
-      const admin = await this.userAdminRepository.findOne({
-        where: { id: pcConfig.pc_admin_id.id },
+    if (pcConfig.pc_admin_id && pcConfig.pc_admin_id.email === admin.email) {
+      const findAdmin = await this.userAdminRepository.findOne({
+        where: { id: pcConfig.pc_admin_id.id, email: admin.email },
         relations: ['pc_configs'],
       });
-      if (admin && admin.pc_configs) {
-        admin.pc_configs = admin.pc_configs.filter(
+      if (findAdmin.pc_configs && findAdmin.pc_configs.length > 0) {
+        findAdmin.pc_configs = admin.pc_configs.filter(
           (pc) => pc.pc_id !== pcConfig.pc_id,
         );
         await this.userAdminRepository.save(admin);
+      } else {
+        findAdmin.pc_configs = [];
+        await this.userAdminRepository.save(findAdmin);
       }
     }
 
     return { message: 'Probability config deleted', pcConfig };
+  }
+
+  async findPC_ConfigTotal(): Promise<any> {
+    const pcTotals = await this.pcConfigTotalRepository.find({
+      where: { is_active: true },
+      relations: ['pcs', 'pc_total_admin'],
+    });
+    return { message: 'Probability config totals retrieved', pcTotals };
   }
 
   // async updatePC_Config(
@@ -269,15 +342,24 @@ export class AdminService {
       where: { pc_id },
       relations: ['pc_admin_id', 'pc_total'],
     });
+
     if (!pcConfig) {
       throw new Error('Probability config not found');
+    }
+
+    if (pcConfig.is_active) {
+      // throw new Error('Probability config is inactive');
+      return { message: 'Probability config is inactive', pcConfig: null };
     }
 
     return { message: 'Probability config retrieved', pcConfig };
   }
 
   async findAllPC_Configs(): Promise<any> {
-    const pcConfigs = await this.pcConfigRepository.find();
+    const pcConfigs = await this.pcConfigRepository.find({
+      where: { is_active: false },
+      relations: ['pc_admin_id', 'pc_total'],
+    });
     return { message: 'Probability configs retrieved', pcConfigs };
   }
 

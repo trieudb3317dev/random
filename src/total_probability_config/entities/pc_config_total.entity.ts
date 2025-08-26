@@ -1,5 +1,12 @@
+import { UserAdminEntity } from 'src/admin/entities/user-admin.entity';
 import { ProbabilityConfigEntity } from 'src/probability_config/entities/pc.entity';
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 
 @Entity('probability_config_totals')
 export class ProbabilityConfigTotalEntity {
@@ -17,6 +24,12 @@ export class ProbabilityConfigTotalEntity {
     onDelete: 'CASCADE',
   })
   pcs: ProbabilityConfigEntity[];
+
+  @ManyToOne(() => UserAdminEntity, (pcTotal) => pcTotal.pc_totals, {
+    nullable: true,
+    onDelete: 'CASCADE',
+  })
+  pc_total_admin: UserAdminEntity;
 
   @Column({ type: 'boolean', default: false, nullable: true })
   is_active: boolean;

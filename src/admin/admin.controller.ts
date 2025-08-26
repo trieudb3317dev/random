@@ -39,6 +39,12 @@ export class AdminController {
     return this.adminService.findAll();
   }
 
+  @Get('/all-pc-admin')
+  @UseGuards(JwtAuthAdminGuard)
+  async findAllPC_ConfigByAdmin(@Req() req: any) {
+    return this.adminService.findPC_ConfigByEmail(req.user);
+  }
+
   @Post('/pc-config')
   @UseGuards(JwtAuthAdminGuard)
   async createPC_Config(@Body() pcConfigDto: PC_ConfigDto, @Req() req: any) {
@@ -53,8 +59,14 @@ export class AdminController {
 
   @Patch('/pc-config/:id')
   @UseGuards(JwtAuthAdminGuard)
-  async removePC_Config(@Param('id') id: number) {
-    return this.adminService.removePC_Config(id);
+  async removePC_Config(@Param('id') id: number, @Req() req: any) {
+    return this.adminService.removePC_Config(id, req.user);
+  }
+
+  @Get('/pc-config-totals')
+  @UseGuards(JwtAuthAdminGuard)
+  async getPC_ConfigTotals() {
+    return this.adminService.findPC_ConfigTotal();
   }
 
   @Get('/pc-config/:id')
