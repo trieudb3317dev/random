@@ -8,13 +8,23 @@ import {
   Timestamp,
 } from 'typeorm';
 
+export enum StatusEnum {
+  NONE = '',
+  SPIN = 'spin',
+  DELETED = 'deleted',
+  CREATED = 'created',
+  UPDATED = 'updated',
+  CHECKED = 'checked',
+  AUTH = 'auth'
+}
+
 @Entity('history')
 export class HistoryEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
   @ManyToOne(() => UserAdminEntity, (userAdmin) => userAdmin.history, {
-    nullable: false,
+    nullable: true,
     onDelete: 'CASCADE',
   })
   history_admin_id: UserAdminEntity;
@@ -24,6 +34,14 @@ export class HistoryEntity {
 
   @Column({ nullable: false })
   history_result: string;
+
+  @Column({
+    type: 'enum',
+    enum: StatusEnum,
+    default: StatusEnum.NONE,
+    nullable: false,
+  })
+  status: StatusEnum;
 
   @Column({ type: 'boolean', default: false })
   is_active: boolean;
