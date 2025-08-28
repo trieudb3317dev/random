@@ -39,56 +39,16 @@ export class AdminController {
     return this.adminService.findAll();
   }
 
-  @Get('/all-pc-admin')
-  @UseGuards(JwtAuthAdminGuard)
-  async findAllPC_ConfigByAdmin(@Req() req: any) {
-    return this.adminService.findPC_ConfigByEmail(req.user);
-  }
-
-  @Post('/pc-config')
-  @UseGuards(JwtAuthAdminGuard)
-  async createPC_Config(@Body() pcConfigDto: PC_ConfigDto, @Req() req: any) {
-    return this.adminService.createProbabilityConfig(pcConfigDto, req.user);
-  }
-
-  @Get('/pc-config')
-  @UseGuards(JwtAuthAdminGuard)
-  async findAllPC_Configs() {
-    return this.adminService.findAllPC_Configs();
-  }
-
-  @Patch('/remove-pc-config/:id')
-  @UseGuards(JwtAuthAdminGuard)
-  async removePC_ConfigById(
-    @Param('id') id: number,
-    @Req() req: any,
-  ): Promise<any> {
-    return this.adminService.removePC_ConfigByid(id, req.user);
-  }
-
-  @Patch('/edit-pc-config/:id')
-  @UseGuards(JwtAuthAdminGuard)
-  async PC_ConeditfigById(
-    @Param('id') id: number,
-    @Req() req: any,
-    @Body() { pc_value, pc_percent }: { pc_value: string; pc_percent: number },
-  ): Promise<any> {
-    return this.adminService.editPC_ConfigByid(id, req.user, {
-      pc_value,
-      pc_percent,
-    });
-  }
-
   @Patch('/remove-player/:id')
   @UseGuards(JwtAuthAdminGuard)
   async removePC_Config(@Param('id') id: number, @Req() req: any) {
     return this.adminService.removePC_Config(id, req.user);
   }
 
-  @Get('/pc-config/:id')
+  @Patch('/remove-players')
   @UseGuards(JwtAuthAdminGuard)
-  async getPC_Config(@Param('id') id: number) {
-    return this.adminService.getPC_ConfigById(id);
+  async removePC_Configs(@Body('ids') ids: number[], @Req() req: any) {
+    return this.adminService.removePC_ConfigBulk(ids, req.user);
   }
 
   @Post('/import-player')
@@ -97,22 +57,35 @@ export class AdminController {
     return this.adminService.importPlayer(data, req.user);
   }
 
+  @Post('/create-player')
+  @UseGuards(JwtAuthAdminGuard)
+  async createPlayer(@Body('data') data: string, @Req() req: any) {
+    return this.adminService.importPlayerList(data, req.user);
+  }
+
   @Get('/player-final')
   async getPlayerFinal(): Promise<any> {
     return this.adminService.findplayerFinal();
   }
 
-  @Get('/player-final-one/:id')
+  @Get('/player/:id')
   async getPlayerFinalOne(@Param('id') id: number): Promise<any> {
     return this.adminService.findplayerFinalOne(id);
   }
 
-  @Patch('/player-final-one/:id')
+  @Patch('/update-player/:id')
   async updatePlayerFinalOne(
     @Param('id') id: number,
     @Body() pc_value: string,
   ): Promise<any> {
     return this.adminService.updateplayerFinalOne(id, pc_value);
+  }
+
+  @Patch('/update-players')
+  async updatePlayerFinals(
+    @Body() updates: { id: number; pc_value: string }[],
+  ): Promise<any> {
+    return this.adminService.updateplayerFinalBulk(updates);
   }
 
   @Post('/create-new-player')
@@ -127,15 +100,15 @@ export class AdminController {
     return this.adminService.createEquallyDivided(data, req.user);
   }
 
-  @Post('/random')
-  @UseGuards(JwtAuthAdminGuard)
-  async random(@Req() req: any) {
-    return this.adminService.random(req.user);
-  }
-
   @Post('/check-change-pc')
   @UseGuards(JwtAuthAdminGuard)
   async checkAndChangPC_Config(@Req() req: any): Promise<any> {
     return this.adminService.checkPC_Config(req.user);
+  }
+
+  @Post('/random-spin')
+  @UseGuards(JwtAuthAdminGuard)
+  async spinRandom(@Req() req: any): Promise<any> {
+    return this.adminService.randomPlay(req.user);
   }
 }

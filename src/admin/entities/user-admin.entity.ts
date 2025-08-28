@@ -19,6 +19,8 @@ export enum UserAdminRole {
 export enum UserAdminStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive',
+  SPIN = 'spin',
+  DELETED = 'deleted',
 }
 
 @Entity('user_admins')
@@ -26,10 +28,10 @@ export class UserAdminEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true, length: 50, nullable: false })
+  @Column({ length: 50, nullable: false })
   email: string;
 
-  @Column({ unique: true, nullable: false })
+  @Column({ nullable: false })
   password: string;
 
   @Column({
@@ -54,7 +56,7 @@ export class UserAdminEntity {
   })
   pc_configs: ProbabilityConfigEntity[];
 
-  @Column({ nullable: true, default: 0 })
+  @Column({ type: 'double precision', nullable: false, default: 0 })
   pc_used: number;
 
   @Column({ nullable: true, default: 100 })

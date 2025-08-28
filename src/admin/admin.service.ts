@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { UserAdminEntity } from './entities/user-admin.entity';
+import { UserAdminEntity, UserAdminStatus } from './entities/user-admin.entity';
 import { Repository } from 'typeorm';
 import { CreateUserAdminDto } from './dto/create.dto';
 import * as bcrypt from 'bcrypt';
@@ -9,8 +9,10 @@ import { JwtService } from '@nestjs/jwt';
 import { Response } from 'express';
 import { PC_ConfigDto } from 'src/probability_config/dto/pc_config.dto';
 import { ProbabilityConfigEntity } from 'src/probability_config/entities/pc.entity';
-import { HistoryEntity } from 'src/history/entities/history.entity';
+import { HistoryEntity, StatusEnum } from 'src/history/entities/history.entity';
 import { ProbabilityConfigFinalEntity } from 'src/total_probability_config/entities/pc_config_final.entity';
+import { ApiResponseDto } from 'src/res/res.dto';
+import { ProbabilityConfigService } from 'src/probability_config/pc.service';
 
 @Injectable()
 export class AdminService {
@@ -24,11 +26,12 @@ export class AdminService {
     @InjectRepository(ProbabilityConfigFinalEntity)
     private readonly probabilityConfigFinalRepository: Repository<ProbabilityConfigFinalEntity>,
     private readonly jwtService: JwtService,
+    private readonly probabilityConfigService: ProbabilityConfigService,
   ) {}
 
   async createAdmin(
     createAdminDto: CreateUserAdminDto,
-  ): Promise<{ meaage: string; admin: UserAdminEntity }> {
+  ): Promise<ApiResponseDto<any>> {
     const salt = 10;
     const hashedPassword = await bcrypt.hash(createAdminDto.password, salt);
 
@@ -38,19 +41,57 @@ export class AdminService {
       password: hashedPassword,
     };
 
+    const findAdmins = await this.userAdminRepository.find({
+      where: { status: UserAdminStatus.ACTIVE },
+    });
+
+    if (!findAdmins) {
+      return {
+        status: HttpStatus.NOT_FOUND,
+        message: 'Not found list admin',
+        data: null,
+      };
+    }
+
+    const checkEmailExisted = findAdmins.some(
+      (item) => item.email === createAdminDto.email,
+    );
+
+    if (checkEmailExisted) {
+      return {
+        status: HttpStatus.CONFLICT,
+        message: 'Email already existed!',
+        data: null,
+      };
+    }
+
     const newAdmin = this.userAdminRepository.create(adminDto);
+
+    // Lưu lịch sử nếu cần
+    // const historyEntry = this.historyRepository.create({
+    //   history_admin_id: newAdmin,
+    //   history_time: new Date(),
+    //   history_result: newAdmin.email,
+    //   status: StatusEnum.CREATED,
+    // });
+    // await this.historyRepository.save(historyEntry);
+
     return {
-      meaage: 'Admin user created successfully',
-      admin: await this.userAdminRepository.save(newAdmin),
+      status: HttpStatus.CREATED,
+      message: 'Admin user created successfully',
+      data: await this.userAdminRepository.save(newAdmin),
     };
   }
 
-  async auth(authDto: AuthDto, response: Response): Promise<any> {
+  async auth(
+    authDto: AuthDto,
+    response: Response,
+  ): Promise<ApiResponseDto<any>> {
     const user = await this.userAdminRepository.findOne({
       where: { email: authDto.email },
     });
     if (!user) {
-      throw new Error('Admin user not found');
+      return { status: HttpStatus.NOT_FOUND, message: 'Admin user not found' };
     }
 
     const isPasswordValid = await bcrypt.compare(
@@ -58,7 +99,7 @@ export class AdminService {
       user.password,
     );
     if (!isPasswordValid) {
-      throw new Error('Invalid password');
+      return { status: HttpStatus.UNAUTHORIZED, message: 'Invalid password' };
     }
 
     const payload = {
@@ -79,7 +120,20 @@ export class AdminService {
       secure: process.env.NODE_ENV === 'production',
     });
 
-    return { message: 'Authentication successful', token };
+    // Lưu lịch sử nếu cần
+    const historyEntry = this.historyRepository.create({
+      history_admin_id: user,
+      history_time: new Date(),
+      history_result: user.email,
+      status: StatusEnum.AUTH,
+    });
+    await this.historyRepository.save(historyEntry);
+
+    return {
+      status: HttpStatus.CREATED,
+      message: 'Authentication successful',
+      data: token,
+    };
   }
 
   async validateAdmin(email: string): Promise<any> {
@@ -92,13 +146,11 @@ export class AdminService {
     return user;
   }
 
-  async findAll(): Promise<{ message: string; admins: UserAdminEntity[] }> {
+  async findAll(): Promise<ApiResponseDto<any>> {
     const admins = await this.userAdminRepository.find({
       relations: ['pc_configs'],
       where: {
-        pc_configs: {
-          is_active: false,
-        },
+        status: UserAdminStatus.ACTIVE,
       },
       select: {
         email: true,
@@ -111,237 +163,11 @@ export class AdminService {
         pc_configs: { pc_id: true, pc_value: true, pc_percent: true },
       },
     });
-    return { message: 'Admin users retrieved successfully', admins };
-  }
-
-  async findPC_ConfigByEmail(
-    admin: any,
-  ): Promise<{ message: string; admins: UserAdminEntity[] }> {
-    const admins = await this.userAdminRepository.find({
-      where: {
-        email: admin.email,
-        pc_configs: {
-          is_active: false,
-        },
-      },
-      relations: ['pc_configs'],
-      select: {
-        email: true,
-        role: true,
-        status: true,
-        pc_total: true,
-        pc_used: true,
-        createdAt: true,
-        updatedAt: true,
-        pc_configs: { pc_id: true, pc_value: true, pc_percent: true },
-      },
-    });
-    return { message: 'Admin users retrieved by admin successfully', admins };
-  }
-
-  async createProbabilityConfig(
-    pcConfigDto: PC_ConfigDto,
-    admin: UserAdminEntity,
-  ): Promise<any> {
-    const findAdmin = await this.userAdminRepository.findOne({
-      where: { email: admin.email },
-      relations: { pc_configs: true },
-    });
-
-    if (
-      !pcConfigDto ||
-      typeof pcConfigDto.pc_value !== 'string' ||
-      typeof pcConfigDto.pc_percent !== 'number'
-    ) {
-      return {
-        message:
-          'pc_value and pc_percent not empty, pc_value must string, pc_percent must number',
-      };
-    }
-
-    if (!findAdmin) {
-      return { message: 'Unauthorized' };
-    }
-
-    let pcTotalReal = 0;
-
-    if (findAdmin && findAdmin.pc_configs) {
-      pcTotalReal = findAdmin.pc_configs.reduce(
-        (total, config) => total + config.pc_percent,
-        0,
-      );
-    }
-
-    console.log('pcTotalReal: ', pcTotalReal);
-
-    if (
-      pcConfigDto.pc_percent < 0 ||
-      pcConfigDto.pc_percent > 100 - pcTotalReal
-    ) {
-      return {
-        meaage: `pc_percent must be between 0 and ${100 - pcTotalReal}`,
-      };
-    }
-
-    let pcConfig: ProbabilityConfigEntity;
-
-    const newConfig = {
-      ...pcConfigDto,
-      pc_admin_id: findAdmin ? findAdmin : null,
+    return {
+      status: HttpStatus.OK,
+      message: 'Admin users retrieved successfully',
+      data: admins,
     };
-
-    if (pcConfig && pcConfig.pc_value === pcConfigDto.pc_value) {
-      return {
-        meaage: 'Data already exists!',
-      };
-    }
-
-    pcConfig = this.pcConfigRepository.create(newConfig);
-    await this.pcConfigRepository.save(pcConfig);
-
-    let newPC_Total = null;
-
-    if (pcTotalReal + pcConfig.pc_percent > 100) {
-      const pcConfig = null;
-      return {
-        meaage: `Total pc_percent exceeds 100. Current total: ${pcTotalReal}, New pc_percent: ${pcConfig.pc_percent}`,
-      };
-    }
-
-    if (findAdmin && findAdmin.email === admin.email) {
-      if (!findAdmin.pc_configs) {
-        findAdmin.pc_configs = [pcConfig];
-        findAdmin.pc_used = pcConfigDto.pc_percent;
-        await this.userAdminRepository.save(findAdmin);
-      }
-      findAdmin.pc_configs = [...findAdmin.pc_configs, pcConfig];
-      // console.log(
-      //   'pcTotalReal + pcConfig.pc_percent',
-      //   pcTotalReal,
-      //   pcConfig.pc_percent,
-      // );
-      findAdmin.pc_used = pcTotalReal + pcConfig.pc_percent;
-      await this.userAdminRepository.save(findAdmin);
-    }
-
-    return { message: 'Probability config created', pcConfig };
-  }
-
-  async getPC_ConfigById(pc_id: number): Promise<any> {
-    const pcConfig = await this.pcConfigRepository.findOne({
-      where: { pc_id, is_active: false },
-      relations: ['pc_admin_id'],
-      select: {
-        pc_id: true,
-        pc_value: true,
-        pc_percent: true,
-        pc_admin_id: { email: true, role: true, status: true },
-      },
-    });
-
-    if (!pcConfig || pcConfig.is_active === true) {
-      return {
-        message: 'Probability config not found',
-      };
-    }
-
-    if (pcConfig.is_active) {
-      // throw new Error('Probability config is inactive');
-      return { message: 'Probability config is inactive', pcConfig: null };
-    }
-
-    return { message: 'Probability config retrieved', pcConfig };
-  }
-
-  async findAllPC_Configs(): Promise<any> {
-    const pcConfigs = await this.pcConfigRepository.find({
-      where: { is_active: false },
-      relations: ['pc_admin_id'],
-      select: {
-        pc_id: true,
-        pc_value: true,
-        pc_percent: true,
-        pc_admin_id: { email: true, role: true, status: true },
-      },
-    });
-    return { message: 'Probability configs retrieved', pcConfigs };
-  }
-
-  async removePC_ConfigByid(id: number, admin: any): Promise<any> {
-    const findPC_Config = await this.pcConfigRepository.findOne({
-      where: { pc_id: id, is_active: false },
-      relations: { pc_admin_id: true },
-    });
-
-    if (!findPC_Config) {
-      return { message: 'PC_Config not found' };
-    }
-
-    const findAdmin = await this.userAdminRepository.findOne({
-      where: { email: admin.email },
-    });
-
-    if (!findAdmin) {
-      return { message: 'Admin not found' };
-    }
-
-    findAdmin.pc_used = findAdmin.pc_used - findPC_Config.pc_percent;
-    await this.userAdminRepository.save(findAdmin);
-
-    findPC_Config.is_active = true;
-    findPC_Config.pc_percent = 0;
-    await this.pcConfigRepository.save(findPC_Config);
-
-    return { message: 'Remove success' };
-  }
-
-  async editPC_ConfigByid(
-    id: number,
-    admin: any,
-    { pc_value, pc_percent }: { pc_value: string; pc_percent: number },
-  ): Promise<any> {
-    console.log(pc_percent, pc_value);
-    const findPC_Config = await this.pcConfigRepository.findOne({
-      where: { pc_id: id, is_active: false },
-      relations: { pc_admin_id: true },
-    });
-
-    if (!findPC_Config) {
-      return { message: 'PC_Config not found' };
-    }
-
-    if (!pc_value || !pc_percent || pc_value === '') {
-      return { message: 'pc_value and pc_percent not empty' };
-    }
-
-    const findAdmin = await this.userAdminRepository.findOne({
-      where: { email: admin.email },
-    });
-
-    if (!findAdmin) {
-      return { message: 'Admin not found' };
-    }
-
-    if (pc_percent > findAdmin.pc_total - findAdmin.pc_used) {
-      return {
-        message: `pc_percent must less than ${findAdmin.pc_total - findAdmin.pc_used}`,
-      };
-    }
-
-    if (findAdmin.pc_used === 0) {
-      findAdmin.pc_used = pc_percent;
-    }
-
-    findAdmin.pc_used =
-      findAdmin.pc_used - (findPC_Config.pc_percent - pc_percent);
-    await this.userAdminRepository.save(findAdmin);
-
-    findPC_Config.pc_value = pc_value;
-    findPC_Config.pc_percent = pc_percent;
-
-    await this.pcConfigRepository.save(findPC_Config);
-
-    return { message: 'Update success' };
   }
 
   // ===========================================================
@@ -355,7 +181,8 @@ export class AdminService {
       typeof data !== 'string' ||
       !data.trim() ||
       /^\d+$/.test(data.trim()) ||
-      !data
+      !data ||
+      data.trim() === ''
     ) {
       return {
         message: 'Data must be a non-empty string and not a number',
@@ -425,6 +252,9 @@ export class AdminService {
       };
     }
 
+    let pc_config_value_message: string;
+    let checkPC_ConfigExisted: boolean;
+
     // Add manualConfigs into database
     manualConfigs.map((item) => {
       console.log('item: ', item);
@@ -433,20 +263,22 @@ export class AdminService {
           message: `The probability configuration must be greater than 0 and less than or equal to ${100 - pc_percent_used_0}`,
         };
       }
-      this.createProbabilityConfig(
-        { pc_value: item.pc_value, pc_percent: item.pc_percent },
-        admin,
+      checkPC_ConfigExisted = findAdmin.pc_configs.some(
+        (pc_config) => pc_config.pc_value === item.pc_value,
       );
 
-      // if (pc_percent_used > findAdmin.pc_total) {
-      //   return {
-      //     message:
-      //       'The percentage value used must not be greater than the total',
-      //   };
-      // } else {
-      //   findAdmin.pc_used = pc_percent_used;
-      //   this.userAdminRepository.save(findAdmin);
-      // }
+      if (checkPC_ConfigExisted) {
+        pc_config_value_message = `PC_Config already existed ${item.pc_value}`;
+      }
+
+      this.probabilityConfigService.createProbabilityConfig(
+        {
+          pc_value: item.pc_value,
+          pc_percent: item.pc_percent,
+          isChange: false,
+        },
+        admin,
+      );
     });
 
     const pc_percent_remaining = 100 - pc_percent_used;
@@ -471,19 +303,92 @@ export class AdminService {
           message: `The probability configuration must be greater than 0 and less than ${100 - pc_percent_used_0}`,
         };
       } else {
-        const newItem = this.probabilityConfigFinalRepository.create({
-          pc_value: pc_final.pc_value,
-          pc_percent: pc_final.pc_percent,
-        });
-        this.probabilityConfigFinalRepository.save(newItem);
+        if (!checkPC_ConfigExisted) {
+          const newItem = this.probabilityConfigFinalRepository.create({
+            pc_value: pc_final.pc_value,
+            pc_percent: pc_final.pc_percent,
+          });
+          this.probabilityConfigFinalRepository.save(newItem);
+        }
       }
     });
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
+    // Lưu lịch sử nếu cần
+    const historyEntry = this.historyRepository.create({
+      history_admin_id: admin,
+      history_time: new Date(),
+      history_result: 'Add list player',
+      status: StatusEnum.CREATED,
+    });
+    await this.historyRepository.save(historyEntry);
+
     return {
       message: 'Import player',
-      random_players,
+      random_players: checkPC_ConfigExisted
+        ? 'Please config again'
+        : random_players,
+      pc_config_value_message: pc_config_value_message
+        ? pc_config_value_message
+        : null,
+    };
+  }
+
+  async importPlayerList(data: string, admin: any): Promise<any> {
+    if (typeof data !== 'string' || !data.trim() || /^\d+$/.test(data.trim())) {
+      return {
+        message: 'Data must be a non-empty string and not a number',
+      };
+    }
+
+    // Loại bỏ trùng lặp và chuẩn hóa dữ liệu
+    const players = Array.from(
+      new Set(
+        data
+          .split('\n')
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    );
+
+    const findAdmin = await this.userAdminRepository.findOne({
+      where: { email: admin.email },
+    });
+
+    if (!findAdmin) {
+      return { message: 'Not auth' };
+    }
+
+    // Lưu từng người chơi vào bảng, không chia xác suất
+    for (const player of players) {
+      // Kiểm tra đã tồn tại chưa
+      const existed = await this.probabilityConfigFinalRepository.findOne({
+        where: { pc_value: player, is_active: false },
+      });
+      if (!existed) {
+        const newItem = this.probabilityConfigFinalRepository.create({
+          pc_value: player,
+          pc_percent: 0,
+        });
+        await this.probabilityConfigFinalRepository.save(newItem);
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Lưu lịch sử nếu cần
+    const historyEntry = this.historyRepository.create({
+      history_admin_id: admin,
+      history_time: new Date(),
+      history_result: 'Add list player',
+      status: StatusEnum.CREATED,
+    });
+    await this.historyRepository.save(historyEntry);
+
+    return {
+      message: 'Import player success',
+      players,
     };
   }
 
@@ -526,6 +431,15 @@ export class AdminService {
       this.probabilityConfigFinalRepository.save(findPC_Config);
     });
 
+    // Lưu lịch sử nếu cần
+    const historyEntry = this.historyRepository.create({
+      history_admin_id: admin,
+      history_time: new Date(),
+      history_result: pc_config.pc_value,
+      status: StatusEnum.DELETED,
+    });
+    await this.historyRepository.save(historyEntry);
+
     return {
       message: 'Probability config deleted',
       filtered,
@@ -534,60 +448,62 @@ export class AdminService {
     };
   }
 
-  async random(admin: any): Promise<any> {
-    let random_players = [
-      {
-        pc_value: 'User A',
-        pc_percent: 40,
-      },
-      {
-        pc_value: 'User B',
-        pc_percent: 30,
-      },
-      {
-        pc_value: 'User C',
-        pc_percent: 30,
-      },
-    ];
-
-    if (!random_players || random_players.length === 0) {
-      return {
-        message: 'No players available for random selection',
-        random_players,
-        selectedPlayer: null,
-      };
+  async removePC_ConfigBulk(pc_ids: number[], admin: any): Promise<any> {
+    if (!Array.isArray(pc_ids) || pc_ids.length === 0) {
+      return { message: 'Input must be a non-empty array of ids' };
     }
 
-    const weighted = [];
-    random_players.forEach((player: { pc_percent: number }) => {
-      const count = Math.round(player.pc_percent);
-      for (let i = 0; i < count; i++) {
-        weighted.push(player);
-      }
-    });
+    // Lấy danh sách người chơi cần xóa
+    const configsToDelete =
+      await this.probabilityConfigFinalRepository.findByIds(pc_ids);
 
-    const randomIndex = Math.floor(Math.random() * weighted.length);
-    const selectedPlayer = weighted[randomIndex];
+    if (configsToDelete.length === 0) {
+      return { message: 'No PC_Config found to delete' };
+    }
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    const historyEntry = this.historyRepository.create({
-      history_admin_id: admin,
-      history_time: new Date(),
-      history_result: selectedPlayer.pc_value,
-    });
-
-    await this.historyRepository.save(historyEntry);
-
-    random_players = random_players.filter(
-      (player) => player.pc_value !== selectedPlayer.pc_value,
+    // Tính tổng xác suất bị xóa
+    const totalPercentDeleted = configsToDelete.reduce(
+      (sum, cfg) => sum + cfg.pc_percent,
+      0,
     );
 
+    // Đánh dấu is_active và pc_percent = 0 cho từng config
+    for (const cfg of configsToDelete) {
+      cfg.is_active = true;
+      cfg.pc_percent = 0;
+      await this.probabilityConfigFinalRepository.save(cfg);
+
+      // Lưu lịch sử nếu cần
+      const historyEntry = this.historyRepository.create({
+        history_admin_id: admin,
+        history_time: new Date(),
+        history_result: cfg.pc_value,
+        status: StatusEnum.DELETED,
+      });
+      await this.historyRepository.save(historyEntry);
+    }
+
+    // Lấy lại danh sách người chơi còn lại
+    const remainingConfigs = await this.probabilityConfigFinalRepository.find({
+      where: { is_active: false },
+    });
+
+    // Chia đều lại xác suất cho các người chơi còn lại
+    const addPercent =
+      remainingConfigs.length > 0
+        ? totalPercentDeleted / remainingConfigs.length
+        : 0;
+
+    for (const cfg of remainingConfigs) {
+      cfg.pc_percent = Number((cfg.pc_percent + addPercent).toFixed(2));
+      await this.probabilityConfigFinalRepository.save(cfg);
+    }
+
     return {
-      message: 'Import player and random - to be implemented',
-      random_players,
-      selectedPlayer,
-      historyEntry,
+      message: 'Bulk probability config deleted',
+      deleted: configsToDelete.map((cfg) => cfg.pc_value),
+      updated: remainingConfigs,
+      totalPercentDeleted,
     };
   }
 
@@ -653,6 +569,51 @@ export class AdminService {
     return {
       message: 'Players update one',
       playerFinalOne,
+    };
+  }
+
+  async updateplayerFinalBulk(
+    updates: { id: number; pc_value: string }[],
+  ): Promise<any> {
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return { message: 'Input must be a non-empty array' };
+    }
+
+    const updatedPlayers = [];
+    const errors = [];
+
+    for (const item of updates) {
+      if (
+        !item.pc_value ||
+        typeof item.pc_value !== 'string' ||
+        item.pc_value === ''
+      ) {
+        errors.push({
+          id: item.id,
+          message: 'pc_value must be a non-empty string',
+        });
+        continue;
+      }
+
+      const playerFinalOne =
+        await this.probabilityConfigFinalRepository.findOne({
+          where: { is_active: false, pc_fianl_id: item.id },
+        });
+
+      if (!playerFinalOne) {
+        errors.push({ id: item.id, message: 'Player not found!' });
+        continue;
+      }
+
+      playerFinalOne.pc_value = item.pc_value;
+      await this.probabilityConfigFinalRepository.save(playerFinalOne);
+      updatedPlayers.push(playerFinalOne);
+    }
+
+    return {
+      message: 'Bulk update completed',
+      updatedPlayers,
+      errors: errors.length > 0 ? errors : null,
     };
   }
 
@@ -751,30 +712,46 @@ export class AdminService {
       findAdmin.pc_configs.some((cfg) => cfg.pc_value === fp.pc_value),
     );
 
+    // Nếu không có ai được cấu hình thì chia đều xác suất cho tất cả
     if (configuredPlayers.length === 0) {
+      const percent = 100 / finalPlayers.length;
+      for (const fp of finalPlayers) {
+        fp.pc_percent = percent;
+        await this.probabilityConfigFinalRepository.save(fp);
+      }
+
+      // Lưu lịch sử nếu cần
+      const historyEntry = this.historyRepository.create({
+        history_admin_id: admin,
+        history_time: new Date(),
+        history_result: 'Check and config probability (equal)',
+        status: StatusEnum.CHECKED,
+      });
+      await this.historyRepository.save(historyEntry);
+
       return {
-        message: 'No user have been config, keep original probability.',
+        message: 'No user have been config, set equal probability.',
+        totalConfiguredPercent: 0,
+        unconfiguredPlayers: finalPlayers,
+        configuredPlayers: [],
       };
     }
 
-    // Tổng xác suất đã cấu hình
-    const totalConfiguredPercent = findAdmin.pc_configs.reduce(
-      (total, config) => total + config.pc_percent,
-      0,
-    );
-    console.log(totalConfiguredPercent);
+    // Nếu có người chơi đã được cấu hình
+    const finalPlayerValues = finalPlayers.map((fp) => fp.pc_value);
+
+    const totalConfiguredPercent = findAdmin.pc_configs
+      .filter((cfg) => finalPlayerValues.includes(cfg.pc_value))
+      .reduce((total, config) => total + config.pc_percent, 0);
 
     // Số lượng player chưa cấu hình
     const unconfiguredPlayers = finalPlayers.filter(
       (fp) => !findAdmin.pc_configs.some((cfg) => cfg.pc_value === fp.pc_value),
     );
 
-    console.log('firunconfiguredPlayersst', unconfiguredPlayers);
-
     // Cập nhật xác suất cho player đã cấu hình
     for (const fp of configuredPlayers) {
       const cfg = findAdmin.pc_configs.find((c) => c.pc_value === fp.pc_value);
-      console.log('cfg', cfg);
       fp.pc_percent = cfg.pc_percent;
       await this.probabilityConfigFinalRepository.save(fp);
     }
@@ -791,45 +768,75 @@ export class AdminService {
       await this.probabilityConfigFinalRepository.save(fp);
     }
 
-    // let count = 0;
-    // let has = false;
-
-    // const pc_config = findAdmin.pc_configs.reduce(
-    //   (total, config) => total + config.pc_percent,
-    //   0,
-    // );
-
-    // console.log(pc_config);
-
-    // finalPlayers.map((final_total) => {
-    //   const checkUser = findAdmin.pc_configs.some(
-    //     (item) => item.pc_value === final_total.pc_value,
-    //   );
-    //   console.log(checkUser);
-
-    //   if (!checkUser) {
-    //     return { message: 'No user have been config' };
-    //   }
-
-    //   findAdmin.pc_configs.map((it) => {
-    //     if (final_total.pc_value === it.pc_value) {
-    //       final_total.pc_percent = it.pc_percent;
-    //       count++;
-    //       this.probabilityConfigFinalRepository.save(final_total);
-    //     }
-
-    //     final_total.pc_percent =
-    //       (100 - pc_config) / (finalPlayers.length - count);
-
-    //     this.probabilityConfigFinalRepository.save(final_total);
-    //   });
-    // });
+    // Lưu lịch sử nếu cần
+    const historyEntry = this.historyRepository.create({
+      history_admin_id: admin,
+      history_time: new Date(),
+      history_result: 'Check and config probability',
+      status: StatusEnum.CHECKED,
+    });
+    await this.historyRepository.save(historyEntry);
 
     return {
-      message: 'Change PC_Config succes',
+      message: 'Change PC_Config success',
       totalConfiguredPercent,
       unconfiguredPlayers,
       configuredPlayers,
+    };
+  }
+
+  async randomPlay(admin: any): Promise<any> {
+    // Lấy danh sách người chơi cuối cùng
+    const playerFinals = await this.probabilityConfigFinalRepository.find({
+      where: { is_active: false },
+      select: { pc_fianl_id: true, pc_value: true, pc_percent: true },
+    });
+
+    if (!playerFinals || playerFinals.length === 0) {
+      return { message: 'No players to random' };
+    }
+
+    // Kiểm tra có ai đã cấu hình xác suất chưa
+    const totalPercent = playerFinals.reduce((sum, p) => sum + p.pc_percent, 0);
+    let players = [...playerFinals];
+
+    // Nếu tất cả pc_percent đều bằng nhau hoặc tổng = 0 thì chia đều xác suất
+    const isAllEqual =
+      players.every((p) => p.pc_percent === players[0].pc_percent) ||
+      totalPercent === 0;
+
+    if (isAllEqual) {
+      const percent = 100 / players.length;
+      players = players.map((p) => ({ ...p, pc_percent: percent }));
+    }
+
+    // Tạo mảng cộng dồn xác suất
+    let sum = 0;
+    const ranges = players.map((p) => {
+      sum += p.pc_percent;
+      return { ...p, range: sum };
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const rand = Math.random() * sum;
+    const selectedPlayer = ranges.find((p) => rand < p.range);
+
+    // Lưu lịch sử nếu cần
+    const historyEntry = this.historyRepository.create({
+      history_admin_id: admin,
+      history_time: new Date(),
+      history_result: selectedPlayer.pc_value,
+      status: StatusEnum.SPIN,
+    });
+    await this.historyRepository.save(historyEntry);
+
+    await this.removePC_Config(selectedPlayer.pc_fianl_id, admin);
+
+    return {
+      message: 'Random spin',
+      selectedPlayer,
+      players,
     };
   }
 }

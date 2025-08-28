@@ -10,6 +10,7 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtAuthAdminStrategy } from './strategies/jwt.strategy';
 import { ProbabilityConfigFinalEntity } from 'src/total_probability_config/entities/pc_config_final.entity';
+import { ProbabilityConfigService } from 'src/probability_config/pc.service';
 
 @Module({
   imports: [
@@ -32,6 +33,11 @@ import { ProbabilityConfigFinalEntity } from 'src/total_probability_config/entit
     ]),
   ],
   controllers: [AdminController],
-  providers: [AdminService, JwtService, JwtAuthAdminStrategy],
+  providers: [
+    AdminService,
+    JwtService,
+    JwtAuthAdminStrategy,
+    ProbabilityConfigService,
+  ],
 })
 export class AdminModule {}

@@ -1,10 +1,5 @@
 import { UserAdminEntity } from 'src/admin/entities/user-admin.entity';
-import {
-  Column,
-  Entity,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('probability_configs')
 export class ProbabilityConfigEntity {
@@ -14,7 +9,7 @@ export class ProbabilityConfigEntity {
   @Column({ nullable: false, unique: false })
   pc_value: string;
 
-  @Column({ nullable: false })
+  @Column({ type: 'double precision', nullable: false })
   pc_percent: number;
 
   @ManyToOne(() => UserAdminEntity, (userAdmin) => userAdmin.id, {
