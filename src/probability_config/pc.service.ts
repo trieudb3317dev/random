@@ -83,8 +83,6 @@ export class ProbabilityConfigService {
         email: true,
         role: true,
         status: true,
-        pc_total: true,
-        pc_used: true,
         createdAt: true,
         updatedAt: true,
         pc_configs: { pc_id: true, pc_value: true, pc_percent: true },
@@ -139,7 +137,20 @@ export class ProbabilityConfigService {
     if (checkPC_ValueExisted) {
       return {
         status: HttpStatus.CONFLICT,
-        message: 'pc_value already existed!',
+        message: `${pcConfigDto.pc_value} already existed!`,
+      };
+    }
+
+    if (
+      !pcConfigDto ||
+      typeof pcConfigDto.pc_value !== 'string' ||
+      typeof pcConfigDto.pc_percent !== 'number' ||
+      pcConfigDto.pc_value === '' ||
+      pcConfigDto.pc_percent < 0
+    ) {
+      return {
+        message:
+          'pc_value and pc_percent not empty, pc_value must string, pc_percent must number or float but not nagative number',
       };
     }
 
@@ -159,30 +170,17 @@ export class ProbabilityConfigService {
       };
     }
 
-    if (
-      !pcConfigDto ||
-      typeof pcConfigDto.pc_value !== 'string' ||
-      typeof pcConfigDto.pc_percent !== 'number' ||
-      pcConfigDto.pc_value === '' ||
-      pcConfigDto.pc_percent < 0
-    ) {
-      return {
-        message:
-          'pc_value and pc_percent not empty, pc_value must string, pc_percent must number or float but not nagative number',
-      };
-    }
+    // if (findAdmin.pc_total === findAdmin.pc_used) {
+    //   return {
+    //     message: `pc_percent been used full`,
+    //   };
+    // }
 
-    if (findAdmin.pc_total === findAdmin.pc_used) {
-      return {
-        message: `pc_percent been used full`,
-      };
-    }
-
-    if (pcConfigDto.pc_percent > findAdmin.pc_total - findAdmin.pc_used) {
-      return {
-        message: `pc_percent must less than ${findAdmin.pc_total - findAdmin.pc_used}`,
-      };
-    }
+    // if (pcConfigDto.pc_percent > findAdmin.pc_total - findAdmin.pc_used) {
+    //   return {
+    //     message: `pc_percent must less than ${findAdmin.pc_total - findAdmin.pc_used}`,
+    //   };
+    // }
 
     if (!findAdmin) {
       return { message: 'Unauthorized' };
@@ -199,14 +197,14 @@ export class ProbabilityConfigService {
 
     console.log('pcTotalReal: ', pcTotalReal);
 
-    if (
-      pcConfigDto.pc_percent < 0 ||
-      pcConfigDto.pc_percent > 100 - pcTotalReal
-    ) {
-      return {
-        message: `pc_percent must be between 0 and ${100 - pcTotalReal}`,
-      };
-    }
+    // if (
+    //   pcConfigDto.pc_percent < 0 ||
+    //   pcConfigDto.pc_percent > 100 - pcTotalReal
+    // ) {
+    //   return {
+    //     message: `pc_percent must be between 0 and ${100 - pcTotalReal}`,
+    //   };
+    // }
 
     if (pcConfig && pcConfig.pc_value === pcConfigDto.pc_value) {
       return {
@@ -219,21 +217,21 @@ export class ProbabilityConfigService {
 
     let newPC_Total = null;
 
-    if (pcTotalReal + pcConfig.pc_percent > 100) {
-      const pcConfig = null;
-      return {
-        message: `Total pc_percent exceeds 100. Current total: ${pcTotalReal}, New pc_percent: ${pcConfig.pc_percent}`,
-      };
-    }
+    // if (pcTotalReal + pcConfig.pc_percent > 100) {
+    //   const pcConfig = null;
+    //   return {
+    //     message: `Total pc_percent exceeds 100. Current total: ${pcTotalReal}, New pc_percent: ${pcConfig.pc_percent}`,
+    //   };
+    // }
 
     if (findAdmin && findAdmin.email === admin.email) {
       if (!findAdmin.pc_configs) {
         findAdmin.pc_configs = [pcConfig];
-        findAdmin.pc_used = pcConfigDto.pc_percent;
+        // findAdmin.pc_used = pcConfigDto.pc_percent;
         await this.userAdminRepository.save(findAdmin);
       }
       findAdmin.pc_configs = [...findAdmin.pc_configs, pcConfig];
-      findAdmin.pc_used = pcTotalReal + pcConfig.pc_percent;
+      // findAdmin.pc_used = pcTotalReal + pcConfig.pc_percent;
       await this.userAdminRepository.save(findAdmin);
     }
 
@@ -313,14 +311,59 @@ export class ProbabilityConfigService {
       0,
     );
 
-    if (pcTotalReal + newTotal > 100) {
-      return {
-        message: `Total pc_percent exceeds 100. Current: ${pcTotalReal}, New: ${newTotal}`,
-      };
+    let pc_random = [];
+    let random_players: PC_ConfigDto[] = [];
+
+    // if (pcTotalReal + newTotal > 100) {
+    //   return {
+    //     message: `Total pc_percent exceeds 100. Current: ${pcTotalReal}, New: ${newTotal}`,
+    //   };
+    // }
+
+    const totalNewPercent = pcConfigDtos.reduce(
+      (total, config) => total + config.pc_percent,
+      0,
+    );
+
+    const checkZeroPercent = pcConfigDtos.filter(
+      (item) => item.pc_percent === 0,
+    );
+
+    const manualConfigs = pcConfigDtos.filter((item) => item.pc_percent !== 0);
+
+    const manualConfigPercent = manualConfigs.reduce(
+      (total, config) => total + config.pc_percent,
+      0,
+    );
+
+    const autoPlayers = pcConfigDtos.filter((item) => item.pc_percent === 0);
+
+    if (totalNewPercent > 100) {
+      return { message: 'Probability less than 100' };
+    } else {
+      if (checkZeroPercent && manualConfigPercent <= 100) {
+        // Chia đều xác suất cho các player còn lại
+        autoPlayers.forEach((player) => {
+          pc_random.push({
+            pc_value: player.pc_value,
+            pc_percent:
+              autoPlayers.length > 0
+                ? (100 - manualConfigPercent) / autoPlayers.length
+                : 0,
+          });
+        });
+
+        // Ghép lại danh sách random_players
+        random_players.push(...manualConfigs, ...pc_random);
+      } else if (manualConfigPercent > 100) {
+        return { message: 'Probability less than 100' };
+      } else {
+        random_players.push(...pcConfigDtos);
+      }
     }
 
     // Tạo và lưu hàng loạt
-    const newConfigs = pcConfigDtos.map((dto) =>
+    const newConfigs = random_players.map((dto) =>
       this.pcConfigRepository.create({
         ...dto,
         pc_admin_id: findAdmin,
@@ -330,7 +373,7 @@ export class ProbabilityConfigService {
 
     // Cập nhật lại pc_used cho admin
     findAdmin.pc_configs = [...(findAdmin.pc_configs || []), ...newConfigs];
-    findAdmin.pc_used = pcTotalReal + newTotal;
+    // findAdmin.pc_used = pcTotalReal + newTotal;
     await this.userAdminRepository.save(findAdmin);
 
     // Lưu lịch sử
@@ -376,19 +419,19 @@ export class ProbabilityConfigService {
       return { message: 'Admin not found' };
     }
 
-    if (pc_percent > findAdmin.pc_total - findAdmin.pc_used) {
-      return {
-        message: `pc_percent must less than ${findAdmin.pc_total - findAdmin.pc_used}`,
-      };
-    }
+    // if (pc_percent > findAdmin.pc_total - findAdmin.pc_used) {
+    //   return {
+    //     message: `pc_percent must less than ${findAdmin.pc_total - findAdmin.pc_used}`,
+    //   };
+    // }
 
-    if (findAdmin.pc_used === 0) {
-      findAdmin.pc_used = pc_percent;
-    }
+    // if (findAdmin.pc_used === 0) {
+    //   findAdmin.pc_used = pc_percent;
+    // }
 
-    findAdmin.pc_used =
-      findAdmin.pc_used - (findPC_Config.pc_percent - pc_percent);
-    await this.userAdminRepository.save(findAdmin);
+    // findAdmin.pc_used =
+    //   findAdmin.pc_used - (findPC_Config.pc_percent - pc_percent);
+    // await this.userAdminRepository.save(findAdmin);
 
     findPC_Config.pc_value = pc_value;
     findPC_Config.pc_percent = pc_percent;
@@ -452,9 +495,9 @@ export class ProbabilityConfigService {
       newTotalPercent += cfg.pc_percent;
     }
 
-    if (newTotalPercent > 100) {
-      return { message: `Total pc_percent exceeds 100: ${newTotalPercent}` };
-    }
+    // if (newTotalPercent > 100) {
+    //   return { message: `Total pc_percent exceeds 100: ${newTotalPercent}` };
+    // }
 
     // Cập nhật từng config
     for (const cfg of validConfigs) {
@@ -487,24 +530,24 @@ export class ProbabilityConfigService {
     }
 
     // Tính lại tổng xác suất của tất cả config thuộc admin (không chỉ các config vừa sửa)
-    const allConfigs = await this.pcConfigRepository.find({
-      where: { is_active: false },
-      relations: { pc_admin_id: true },
-    });
+    // const allConfigs = await this.pcConfigRepository.find({
+    //   where: { is_active: false },
+    //   relations: { pc_admin_id: true },
+    // });
 
-    const allAdminConfigs = allConfigs.filter(
-      (acfg) => acfg.pc_admin_id.email === findAdmin.email,
-    );
+    // const allAdminConfigs = allConfigs.filter(
+    //   (acfg) => acfg.pc_admin_id.email === findAdmin.email,
+    // );
 
-    console.log(allAdminConfigs);
+    // console.log(allAdminConfigs);
 
-    const totalPercent = allAdminConfigs.reduce(
-      (sum, cfg) => sum + cfg.pc_percent,
-      0,
-    );
+    // const totalPercent = allAdminConfigs.reduce(
+    //   (sum, cfg) => sum + cfg.pc_percent,
+    //   0,
+    // );
 
-    findAdmin.pc_used = totalPercent;
-    await this.userAdminRepository.save(findAdmin);
+    // findAdmin.pc_used = totalPercent;
+    // await this.userAdminRepository.save(findAdmin);
 
     return {
       status: HttpStatus.OK,
@@ -534,8 +577,8 @@ export class ProbabilityConfigService {
       return { message: 'Admin not found' };
     }
 
-    findAdmin.pc_used = findAdmin.pc_used - findPC_Config.pc_percent;
-    await this.userAdminRepository.save(findAdmin);
+    // findAdmin.pc_used = findAdmin.pc_used - findPC_Config.pc_percent;
+    // await this.userAdminRepository.save(findAdmin);
 
     findPC_Config.is_active = true;
     findPC_Config.pc_percent = 0;
@@ -554,7 +597,7 @@ export class ProbabilityConfigService {
   }
 
   async removePC_ConfigsBulk(ids: number[], admin: any): Promise<any> {
-    console.log(ids)
+    console.log(ids);
     if (!Array.isArray(ids) || ids.length === 0) {
       return { message: 'Input must be a non-empty array of ids' };
     }
@@ -573,7 +616,7 @@ export class ProbabilityConfigService {
       ids.includes(cfg.pc_id),
     );
 
-    console.log(configsToRemove)
+    console.log(configsToRemove);
 
     if (configsToRemove.length === 0) {
       return { message: 'No configs found for this admin to remove' };
@@ -596,25 +639,24 @@ export class ProbabilityConfigService {
     }
 
     // Tính lại tổng xác suất của admin sau khi xóa
-    const activeConfigs = await this.pcConfigRepository.find({
-      where: { is_active: false },
-      relations: { pc_admin_id: true },
-    });
-    const adminActiveConfigs = activeConfigs.filter(
-      (cfg) => cfg.pc_admin_id.email === findAdmin.email,
-    );
-    const totalPercent = adminActiveConfigs.reduce(
-      (sum, cfg) => sum + cfg.pc_percent,
-      0,
-    );
+    // const activeConfigs = await this.pcConfigRepository.find({
+    //   where: { is_active: false },
+    //   relations: { pc_admin_id: true },
+    // });
+    // const adminActiveConfigs = activeConfigs.filter(
+    //   (cfg) => cfg.pc_admin_id.email === findAdmin.email,
+    // );
+    // const totalPercent = adminActiveConfigs.reduce(
+    //   (sum, cfg) => sum + cfg.pc_percent,
+    //   0,
+    // );
 
-    findAdmin.pc_used = totalPercent;
-    await this.userAdminRepository.save(findAdmin);
+    // findAdmin.pc_used = totalPercent;
+    // await this.userAdminRepository.save(findAdmin);
 
     return {
       message: 'Bulk remove success',
       removed: configsToRemove.map((cfg) => cfg.pc_value),
-      pc_used: totalPercent,
     };
   }
 }

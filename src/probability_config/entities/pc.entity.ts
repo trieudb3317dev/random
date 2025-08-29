@@ -18,6 +18,7 @@ export class ProbabilityConfigEntity {
   })
   pc_admin_id: UserAdminEntity;
 
+
   @Column({ type: 'boolean', default: false, nullable: true })
   is_active: boolean;
 }

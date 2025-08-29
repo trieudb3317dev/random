@@ -34,6 +34,34 @@ export class HistoryService {
     return { message: 'success', histories: data };
   }
 
+  async findAllByAdmin(admin: any): Promise<any> {
+    const data = await this.historyRepository.find({
+      where: { is_active: false },
+      relations: { history_admin_id: true },
+      select: {
+        id: true,
+        history_result: true,
+        history_time: true,
+        status: true,
+        history_admin_id: {
+          email: true,
+          role: true,
+          status: true,
+        },
+      },
+    });
+
+    const historyAdmin = data.filter(
+      (item) => item.history_admin_id.email === admin.email,
+    );
+
+    if (!data || !historyAdmin) {
+      return { message: 'History none content by admin' };
+    }
+
+    return { message: 'success', histories: historyAdmin };
+  }
+
   async findById(id: number): Promise<any> {
     const findHistory = await this.historyRepository.findOne({
       where: { is_active: false, id: id },
@@ -85,7 +113,7 @@ export class HistoryService {
     return { message: 'success', findHistory };
   }
 
-  async removeAllHistoryById(): Promise<any> {
+  async removeAllHistoryById(admin: any): Promise<any> {
     const findHistories = await this.historyRepository.find({
       where: { is_active: false },
       relations: { history_admin_id: true },
@@ -101,11 +129,15 @@ export class HistoryService {
       },
     });
 
-    if (!findHistories) {
+    const historyAdmin = findHistories.filter(
+      (item) => item.history_admin_id.email === admin.email,
+    );
+
+    if (!findHistories || !historyAdmin) {
       return { message: 'Content history not found' };
     }
 
-    const result = findHistories.map((item) => {
+    const result = historyAdmin.map((item) => {
       item.is_active = true;
       this.historyRepository.save(item);
     });
@@ -135,6 +167,42 @@ export class HistoryService {
     }
 
     const players = data.filter((item) => item.status === StatusEnum.SPIN);
+
+    if (!players) {
+      return { message: 'None player spin' };
+    }
+
+    return { message: 'success', players };
+  }
+
+  async findPlayerSpinByAdmin(admin: any): Promise<any> {
+    const data = await this.historyRepository.find({
+      where: { is_active: false },
+      relations: { history_admin_id: true },
+      select: {
+        id: true,
+        history_result: true,
+        history_time: true,
+        status: true,
+        history_admin_id: {
+          email: true,
+          role: true,
+          status: true,
+        },
+      },
+    });
+
+    const historyAdmin = data.filter(
+      (item) => item.history_admin_id.email === admin.email,
+    );
+
+    if (!data || !historyAdmin) {
+      return { message: 'History none content' };
+    }
+
+    const players = historyAdmin.filter(
+      (item) => item.status === StatusEnum.SPIN,
+    );
 
     if (!players) {
       return { message: 'None player spin' };

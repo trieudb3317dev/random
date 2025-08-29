@@ -26,7 +26,6 @@
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
     "db:drop": "npm run typeorm schema:drop"
-
   },
   "dependencies": {
     "@nestjs/class-validator": "^0.13.4",
@@ -39,6 +38,7 @@
     "@nestjs/platform-express": "^11.1.4",
     "@nestjs/platform-socket.io": "^11.1.4",
     "@nestjs/schedule": "^6.0.0",
+    "@nestjs/swagger": "^11.2.0",
     "@nestjs/throttler": "^6.4.0",
     "@nestjs/typeorm": "^11.0.0",
     "@nestjs/websockets": "^11.1.4",
@@ -61,6 +61,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "socket.io": "^4.8.1",
+    "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.25",
     "winston": "^3.17.0"
   },

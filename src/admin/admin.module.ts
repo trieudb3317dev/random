@@ -39,5 +39,6 @@ import { ProbabilityConfigService } from 'src/probability_config/pc.service';
     JwtAuthAdminStrategy,
     ProbabilityConfigService,
   ],
+  exports: [AdminService],
 })
 export class AdminModule {}

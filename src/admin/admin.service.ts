@@ -87,6 +87,22 @@ export class AdminService {
     authDto: AuthDto,
     response: Response,
   ): Promise<ApiResponseDto<any>> {
+    if (
+      !authDto ||
+      typeof authDto.email !== 'string' ||
+      typeof authDto.password !== 'string' ||
+      authDto.email === ' ' ||
+      authDto.password === ' '
+    ) {
+      return { message: 'Email, Password must none-empty' };
+    }
+
+    let re =
+      /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+
+    if (!re.test(authDto.email)) {
+      return { message: 'Email no correct format' };
+    }
     const user = await this.userAdminRepository.findOne({
       where: { email: authDto.email },
     });
@@ -156,8 +172,6 @@ export class AdminService {
         email: true,
         role: true,
         status: true,
-        pc_total: true,
-        pc_used: true,
         createdAt: true,
         updatedAt: true,
         pc_configs: { pc_id: true, pc_value: true, pc_percent: true },
@@ -711,6 +725,13 @@ export class AdminService {
     const configuredPlayers = finalPlayers.filter((fp) =>
       findAdmin.pc_configs.some((cfg) => cfg.pc_value === fp.pc_value),
     );
+
+    const configureedPlayersPercent = configuredPlayers.reduce(
+      (total, config) => total + config.pc_percent,
+      0,
+    );
+
+    
 
     // Nếu không có ai được cấu hình thì chia đều xác suất cho tất cả
     if (configuredPlayers.length === 0) {

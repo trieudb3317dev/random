@@ -56,11 +56,11 @@ export class UserAdminEntity {
   })
   pc_configs: ProbabilityConfigEntity[];
 
-  @Column({ type: 'double precision', nullable: false, default: 0 })
-  pc_used: number;
+  // @Column({ type: 'double precision', nullable: false, default: 0 })
+  // pc_used: number;
 
-  @Column({ nullable: true, default: 100 })
-  pc_total: number;
+  // @Column({ nullable: true, default: 100 })
+  // pc_total: number;
 
   @OneToMany(() => HistoryEntity, (history) => history.history_admin_id, {
     nullable: true,

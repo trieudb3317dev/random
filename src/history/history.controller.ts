@@ -1,5 +1,14 @@
-import { Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { HistoryService } from './history.service';
+import { JwtAuthAdminGuard } from 'src/admin/guards/jwt-auth-admin.guard';
 
 @Controller('history')
 export class HistoryController {
@@ -8,6 +17,12 @@ export class HistoryController {
   @Get('/all')
   async getAllHistory(): Promise<any> {
     return this.historyService.findAll();
+  }
+
+  @Get('/admin-all')
+  @UseGuards(JwtAuthAdminGuard)
+  async getAllByAdminHistory(@Req() req: any): Promise<any> {
+    return this.historyService.findAllByAdmin(req.user);
   }
 
   @Get('/:id')
@@ -21,12 +36,19 @@ export class HistoryController {
   }
 
   @Patch('/remove-all')
-  async removeAllHistoryById(): Promise<any> {
-    return this.historyService.removeAllHistoryById();
+  @UseGuards(JwtAuthAdminGuard)
+  async removeAllHistoryById(@Req() req: any): Promise<any> {
+    return this.historyService.removeAllHistoryById(req.user);
   }
 
   @Get('/player/spin')
   async getPlayerSpin(): Promise<any> {
     return this.historyService.findPlayerSpin();
+  }
+
+  @Get('/player/spin-admin')
+  @UseGuards(JwtAuthAdminGuard)
+  async getPlayerSpinByAdmin(@Req() req: any): Promise<any> {
+    return this.historyService.findPlayerSpinByAdmin(req.user);
   }
 }
